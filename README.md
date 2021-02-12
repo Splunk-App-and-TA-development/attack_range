@@ -1,140 +1,220 @@
+<p align="center">
+    <a href="https://github.com/splunk/attack_range/releases">
+        <img src="https://img.shields.io/github/v/release/splunk/attack_range" /></a>
+    <a href="https://circleci.com/gh/splunk/attack_range/tree/develop">
+        <img src="https://img.shields.io/circleci/build/github/splunk/attack_range?token=4ae763d7a7d21e86bb40a76797cab13cda402fba" /></a>
+    <a href="https://github.com/splunk/attack_range/graphs/contributors" alt="Contributors">
+        <img src="https://img.shields.io/github/contributors/splunk/attack_range" /></a>
+    <a href="https://github.com/splunk/attack_range/stargazers">
+        <img src="https://img.shields.io/github/stars/splunk/attack_range?style=social" /></a>
+</p>
 
-![](docs/range.jpg)
-# Splunk Attack Range
+# Splunk Attack Range ⚔️
+![Attack Range Log](docs/attack_range.png)
 
-## Purpose
-The Attack Range solves two main challenges in development of detections. First, it allows the user to quickly build a small lab infrastructure as close as possible to your production environment. This lab infrastructure contains a Windows Domain Controller, Windows Workstation and Linux server, which comes pre-configured with multiple security tools and logging configuration. The infrastructure comes with a Splunk server collecting multiple log sources from the different servers.  
-
-Second, this framework allows the user to perform attack simulation using different engines. Therefore, the user can repeatedly replicate and generate data as close to "ground truth" as possible, in a format that allows the creation of detections, investigations, knowledge objects, and playbooks in Splunk.
-
-
-## Architecture
-Attack Range can be used in two different ways:
-- local using vagrant and virtualbox
-- in the cloud using terraform and AWS
-
-In order to make Attack Range work on almost every laptop, the local version using Vagrant and Virtualbox consists of a subset of the full-blown cloud infrastructure in AWS using Terraform. The local version consists of a Splunk single instance and a Windows 10 workstation pre-configured with best practice logging configuration according to Splunk. The cloud infrastructure in AWS using Terraform consists of a Windows 10 workstation, a Windows 2016 server and a Splunk server. More information can be found in the wiki
-
-![Logical Diagram](docs/attack_range_architecture.jpeg)
+## Purpose 🛡
+The Attack Range is a detection development platform, which solves three main challenges in detection engineering. First, the user is able to build quickly a small lab infrastructure as close as possible to a production environment. Second, the Attack Range performs attack simulation using different engines such as Atomic Red Team or Caldera in order to generate real attack data. Third, it integrates seamlessly into any Continuous Integration / Continuous Delivery (CI/CD) pipeline to automate the detection rule testing process.  
 
 
-## Configuration
-- local [Vagrant and Virtualbox](https://github.com/splunk/attack_range/wiki/Configure-Attack-Range-for-Vagrant)
-- cloud [Terraform and AWS](https://github.com/splunk/attack_range/wiki/Configure-Attack-Range-for-Terraform)
-- cloud optimized [Packer + Terraform and AWS](https://github.com/splunk/attack_range/wiki/Configure-Attack-Range-for-Packer)
+## Demo 📺
+[A short demo (< 6 min)](https://www.youtube.com/watch?v=xIbln7OQ-Ak) which shows the basic functions of the attack range. It builds a testing enviroment using terraform, walks through the data collected by Splunk. Then attacks it using MITRE ATT&CK Technique [T1003](https://attack.mitre.org/techniques/T1003/) and finally showcases how [Splunk Security Content](https://github.com/splunk/security-content) searches are used to detect the attack.
 
-## Running
+[![Attack Range Demo](https://img.youtube.com/vi/xIbln7OQ-Ak/0.jpg)](https://www.youtube.com/watch?v=xIbln7OQ-Ak)
+
+## Building 👷‍♂️
+
+Attack Range can be built in three different ways:
+
+- [**cloud**](#installation) with terraform plus AWS or Azure.
+- [**locally**](https://github.com/splunk/attack_range_local/) with vagrant and virtualbox
+- [**serverless**](https://github.com/splunk/attack_range_cloud/) with terraform and AWS services
+
+## Installation 🏗
+
+### [AWS and Ubuntu 18.04](https://github.com/splunk/attack_range/wiki/AWS:-Ubuntu-18.04-Installation)
+
+1. `source <(curl -s 'https://raw.githubusercontent.com/splunk/attack_range/develop/scripts/ubuntu_deploy.sh')`
+2. `aws configure`
+3. `python attack_range.py configure`
+
+### [AWS and MacOS](https://github.com/splunk/attack_range/wiki/AWS:-MacOS-Installation)
+
+1. `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/splunk/attack_range/develop/scripts/macos_deploy_aws.sh)" && cd attack_range && source venv/bin/activate`
+2. `aws configure`
+3. `python attack_range.py configure`
+
+
+### [Azure and MacOS](https://github.com/splunk/attack_range/wiki/Azure:-MacOS-Installation)
+1. `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/splunk/attack_range/develop/scripts/macos_deploy_azure.sh)" && cd attack_range && source venv/bin/activate`
+2. `az login`
+3. `python attack_range.py configure`
+
+
+## Architecture 🏯
+![Logical Diagram](docs/attack_range_architecture.png)
+
+The virtualized deployment of Attack Range consists of:
+
+- Windows Domain Controller
+- Windows Server
+- Windows Workstation
+- A Kali Machine
+- Splunk Server
+- Phantom Server
+- Zeek Sensor
+
+Which can be added/removed/configured using [attack_range.conf](https://github.com/splunk/attack_range/blob/develop/attack_range.conf.template). More machines such as Phantom, Linux server, Linux client, MacOS clients are currently under development.
+
+An approximate **cost estimate** for running attack_range on AWS can be found [here](https://github.com/splunk/attack_range/wiki/Cost-Estimates).
+
+#### Logging
+The following log sources are collected from the machines:
+
+- Windows Event Logs (```index = win```)
+- Sysmon Logs (```index = win```)
+- Powershell Logs (```index = win```)
+- Network Logs with Splunk Stream (```index = main```)
+- Attack Simulation Logs from Atomic Red Team and Caldera (```index = attack```)
+
+## Running 🏃‍♀️
 Attack Range supports different actions:
+
+- Configuring Attack Range
 - Build Attack Range
 - Perform Attack Simulation
-- Search with Attack Range
+- Test with Attack Range
 - Destroy Attack Range
 - Stop Attack Range
 - Resume Attack Range
+- Dump Log Data from Attack Range
+
+### Configure Attack Range
+```
+python attack_range.py configure
+```
 
 ### Build Attack Range
-- Build Attack Range using **Terraform**
 ```
-python attack_range.py -m terraform -a build
+python attack_range.py build
 ```
-- Build Attack Range using **Vagrant**
+
+### Show Attack Range Infrastructure
 ```
-python attack_range.py -m vagrant -a build
-```
-- Build Attack Range using **Packer**
-```
-python attack_range.py -m packer -a build
+python attack_range.py show
 ```
 
 ### Perform Attack Simulation
-- Perform Attack Simulation using **Terraform**
 ```
-python attack_range.py -m terraform -a simulate -st T1117,T1003 -t attack-range-windows-domain-controller
-```
-- Perform Attack Simulation using **Vagrant**
-```
-python attack_range.py -m vagrant -a simulate -st T1117,T1003 -t attack-range-win10
-```
-- Perform Attack Simulation using **Packer**
-```
-python attack_range.py -m packer -a simulate -st T1117,T1003 -t attack-range-win10
+python attack_range.py simulate -st T1003.001 -t ar-win-dc-default-username-33048
 ```
 
-### Search with Attack Range
-- Run a savedsearch with **Terraform** and return the results:
+### Test with Attack Range
 ```
-python attack_range.py -m terraform -a search -sn search_name
-```
-- Run a savedsearch with **Vagrant** and return the results:
-```
-python attack_range.py -m vagrant -a search -sn search_name
-```
-- Run a savedsearch with **Packer** and return the results:
-```
-python attack_range.py -m packer -a search -sn search_name
+python attack_range.py test -tf tests/T1003_001.yml
 ```
 
 ### Destroy Attack Range
-- Destroy Attack Range using **Terraform**
 ```
-python attack_range.py -m terraform -a destroy
-```
-- Destroy Attack Range using **Vagrant**
-```
-python attack_range.py -m vagrant -a destroy
-```
-- Destroy Attack Range using **Packer**
-```
-python attack_range.py -m packer -a destroy
+python attack_range.py destroy
 ```
 
 ### Stop Attack Range
-- Stop Attack Range using **Terraform**
 ```
-python attack_range.py -m terraform -a stop
-```
-- Stop Attack Range using **Vagrant**
-```
-python attack_range.py -m vagrant -a stop
-```
-- Stop Attack Range using **Packer**
-```
-python attack_range.py -m packer -a stop
+python attack_range.py stop
 ```
 
 ### Resume Attack Range
-- Resume Attack Range using **Terraform**
 ```
-python attack_range.py -m terraform -a resume
-```
-- Resume Attack Range using **Vagrant**
-```
-python attack_range.py -m vagrant -a resume
-```
-- Resume Attack Range using **Packer**
-```
-python attack_range.py -m packer -a resume
+python attack_range.py resume
 ```
 
-## Support
+### Dump Log Data from Attack Range
+```
+python attack_range.py dump -dn data_dump
+```
+
+
+### Replay Dumps into Attack Range Splunk Server
+- Replay previously saved dumps from Attack Range
+
+```
+python attack_range.py replay -dn data_dump [--dump NAME_OF_DUMP]
+```
+
+- default will dump all enabled dumps described in `attack_data/dumps.yml`
+- with optional argument `--dump` you can specify which dump to replay
+
+```
+python attack_range.py replay -dn data_dump --dump windows_sec_events
+```
+
+## Features 💍
+- [Splunk Server](https://github.com/splunk/attack_range/wiki/Splunk-Server)
+  * Indexing of Microsoft Event Logs, PowerShell Logs, Sysmon Logs, DNS Logs, ...
+  * Preconfigured with multiple TAs for field extractions
+  * Out of the box Splunk detections with Enterprise Security Content Update ([ESCU](https://splunkbase.splunk.com/app/3449/)) App
+  * Preinstalled Machine Learning Toolkit ([MLTK](https://splunkbase.splunk.com/app/2890/))
+  * pre-indexed BOTS datasets
+  * Splunk UI available through port 8000 with user admin
+  * ssh connection over configured ssh key
+
+- [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263/)
+  * [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263/) is a premium security solution requiring a paid license.
+  * Enable or disable [Splunk Enterprise Security](https://splunkbase.splunk.com/app/263/) in [attack_range.conf](https://github.com/splunk/attack_range/blob/develop/attack_range.conf.template)
+  * Purchase a license, download it and store it in the apps folder to use it.
+
+- [Splunk Phantom](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html)
+  * [Splunk Phantom](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html) is a Security Orchestration and Automation platform
+  * For a free development license (100 actions per day) register [here](https://my.phantom.us/login/?next=/)
+  * Enable or disable [Splunk Phantom](https://www.splunk.com/en_us/software/splunk-security-orchestration-and-automation.html) in [attack_range.conf](https://github.com/splunk/attack_range/blob/develop/attack_range.conf.template)
+
+- [Windows Domain Controller & Window Server & Windows 10 Client](https://github.com/splunk/attack_range/wiki/Windows-Infrastructure)
+  * Can be enabled, disabled and configured over [attack_range.conf](https://github.com/splunk/attack_range/blob/develop/attack_range.conf.template)
+  * Collecting of Microsoft Event Logs, PowerShell Logs, Sysmon Logs, DNS Logs, ...
+  * Sysmon log collection with customizable Sysmon configuration
+  * RDP connection over port 3389 with user Administrator
+
+- [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team)
+  * Attack Simulation with [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team)
+  * Will be automatically installed on target during first execution of simulate
+  * Atomic Red Team already uses the new Mitre sub-techniques
+
+- [Caldera](https://github.com/mitre/caldera)
+  * Adversary Emulation with [Caldera](https://github.com/mitre/caldera)
+  * Installed on the Splunk Server and available over port 8888 with user admin
+  * Preinstalled Caldera agents on windows machines
+
+- [Kali Linux](https://www.kali.org/)
+  * Preconfigured Kali Linux machine for penetration testing
+  * ssh connection over configured ssh key
+
+
+## Support 📞
 Please use the [GitHub issue tracker](https://github.com/splunk/attack_range/issues) to submit bugs or request features.
 
 If you have questions or need support, you can:
 
+* Join the [#security-research](https://splunk-usergroups.slack.com/archives/C1S5BEF38) room in the [Splunk Slack channel](http://splunk-usergroups.slack.com)
 * Post a question to [Splunk Answers](http://answers.splunk.com)
-* Join the [#security-research](https://splunk-usergroups.slack.com/messages/C1RH09ERM/) room in the [Splunk Slack channel](http://splunk-usergroups.slack.com)
 * If you are a Splunk Enterprise customer with a valid support entitlement contract and have a Splunk-related question, you can also open a support case on the https://www.splunk.com/ support portal
 
+## Contributing 🥰
+We welcome feedback and contributions from the community! Please see our [contribution guidelines](docs/CONTRIBUTING.md) for more information on how to get involved.
 
 ## Author
 * [Jose Hernandez](https://twitter.com/d1vious)
+* [Patrick Bareiß](https://twitter.com/bareiss_patrick)
 
 ## Contributors
-* [Patrick Bareiß](https://twitter.com/bareiss_patrick)
 * [Bhavin Patel](https://twitter.com/hackpsy)
 * [Rod Soto](https://twitter.com/rodsoto)
 * Russ Nolen
 * Phil Royer
-
-## Contributing
-We welcome feedback and contributions from the community! Please see our [contribution guidelines](docs/CONTRIBUTING.md) for more information on how to get involved.
+* [Joseph Zadeh](https://twitter.com/JosephZadeh)
+* Rico Valdez
+* [Dimitris Lambrou](https://twitter.com/etz69)
+* [Dave Herrald](https://twitter.com/daveherrald)
+* Ignacio Bermudez Corrales
+* Peter Gael
+* Josef Kuepker
+* Shannon Davis

@@ -2,11 +2,10 @@ import os
 import sys
 import argparse
 from modules import logger
+from modules import configuration
 from pathlib import Path
 from modules.CustomConfigParser import CustomConfigParser
 from modules.TerraformController import TerraformController
-from modules.VagrantController import VagrantController
-from modules.PackerController import PackerController
 
 
 # need to set this ENV var due to a OSX High Sierra forking bug
@@ -16,40 +15,8 @@ os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
 VERSION = 1
 
 
-if __name__ == "__main__":
-    # grab arguments
-    parser = argparse.ArgumentParser(description="starts a attack range ready to collect attack data into splunk")
-    parser.add_argument("-m", "--mode", required=False, choices=['vagrant', 'terraform', 'packer'],
-                        help="mode of operation, terraform/vagrant/packer, please see configuration for each at: https://github.com/splunk/attack_range")
-    parser.add_argument("-a", "--action", required=False, choices=['build', 'destroy', 'simulate', 'stop', 'resume', 'search'],
-                        help="action to take on the range, defaults to \"build\", build/destroy/simulate/stop/resume/search allowed")
-    parser.add_argument("-t", "--target", required=False,
-                        help="target for attack simulation. For mode vagrant use name of the vbox. For mode terraform use the name of the aws EC2 name")
-    parser.add_argument("-st", "--simulation_technique", required=False, type=str, default="",
-                        help="comma delimited list of MITRE ATT&CK technique ID to simulate in the attack_range, example: T1117, T1118, requires --simulation flag")
-    parser.add_argument("-sn", "--search_name", required=False, type=str, default="",
-                        help="name of savedsearch, which you want to run")
-    parser.add_argument("-c", "--config", required=False, default="attack_range.conf",
-                        help="path to the configuration file of the attack range")
-    parser.add_argument("-lm", "--list_machines", required=False, default=False, action="store_true", help="prints out all avaiable machines")
-    parser.add_argument("-ls", "--list_searches", required=False, default=False, action="store_true", help="prints out all avaiable savedsearches")
-    parser.add_argument("-f", "--force", required=False, default=False, action="store_true", help="forces a regeneration of amis (mode packer only)")
-    parser.add_argument("-v", "--version", default=False, action="store_true", required=False,
-                        help="shows current attack_range version")
-
-    # parse them
-    args = parser.parse_args()
-    ARG_VERSION = args.version
-    mode = args.mode
-    action = args.action
-    target = args.target
+def init(args):
     config = args.config
-    simulation_techniques = args.simulation_technique
-    list_machines = args.list_machines
-    list_searches = args.list_searches
-    search_name = args.search_name
-    force = args.force
-
     print("""
 starting program loaded for B1 battle droid
           ||/__'`.
@@ -71,10 +38,11 @@ starting program loaded for B1 battle droid
     # parse config
     attack_range_config = Path(config)
     if attack_range_config.is_file():
-        print("attack_range is using config at path {0}".format(attack_range_config))
+        print("attack_range is using config at path {0}".format(
+            attack_range_config))
         configpath = str(attack_range_config)
     else:
-        print("ERROR: attack_range failed to find a config file at {0} or {1}..exiting".format(attack_range_config))
+        print("ERROR: attack_range failed to find a config file")
         sys.exit(1)
 
     # Parse config
@@ -84,66 +52,157 @@ starting program loaded for B1 battle droid
     log = logger.setup_logging(config['log_path'], config['log_level'])
     log.info("INIT - attack_range v" + str(VERSION))
 
-    if ARG_VERSION:
-        log.info("version: {0}".format(VERSION))
-        sys.exit(0)
+    if config['cloud_provider'] == 'azure':
+        os.environ["AZURE_SUBSCRIPTION_ID"] = config['azure_subscription_id']
 
-    if not mode:
-        log.error('ERROR: Specify Attack Range Mode with -m ')
+    if config['attack_range_password'] == 'Pl3ase-k1Ll-me:p':
+        log.error('ERROR: please change attack_range_password in attack_range.conf')
         sys.exit(1)
 
-    if mode and not action and not list_machines and not list_searches:
-        log.error('ERROR: Use -a to perform an action or -ls to list avaiable machines')
+    if config['cloud_provider'] == 'azure' and config['zeek_sensor'] == '1':
+        log.error('ERROR: zeek sensor only available for aws in the moment. Plase change zeek_sensor to 0 and try again.')
         sys.exit(1)
 
-    if mode and action == 'simulate' and not target:
-        log.error('ERROR: Specify target for attack simulation')
-        sys.exit(1)
+    return TerraformController(config, log), config, log
 
-    if mode and action == 'search' and not search_name:
-        log.error('ERROR: Specify search name to execute.')
-        sys.exit(1)
 
-    if mode != 'packer' and force:
-        log.error('ERROR: Force can only be used with mode packer.')
-        sys.exit(1)
+def configure(args):
+    configuration.new(args.config)
 
+def show(args):
+    controller, _, _ = init(args)
+    if args.machines:
+        controller.list_machines()
+
+
+def simulate(args):
+    controller, config, _ = init(args)
+    target = args.target
+    simulation_techniques = args.simulation_technique
+    simulation_atomics = args.simulation_atomics
     # lets give CLI priority over config file for pre-configured techniques
     if simulation_techniques:
         pass
     else:
         simulation_techniques = config['art_run_techniques']
 
+    if not simulation_atomics:
+        simulation_atomics = 'no'
+    return controller.simulate(target, simulation_techniques, simulation_atomics)
 
-    if mode == 'terraform':
-        controller = TerraformController(config, log)
-    elif mode == 'vagrant':
-        controller = VagrantController(config, log)
-    elif mode == 'packer':
-        controller = PackerController(config, log, force)
+def dump(args):
+    controller, _, _ = init(args)
+    controller.dump_attack_data(args.dump_name, args.last_sim)
 
-    if list_machines:
-        controller.list_machines()
-        sys.exit(0)
 
-    if list_searches:
-        controller.list_searches()
-        sys.exit(0)
+def replay(args):
+    controller, _, _ = init(args)
+    controller.replay_attack_data(args.dump_name, args.dump)
 
-    if action == 'build':
-        controller.build()
 
-    if action == 'destroy':
-        controller.destroy()
+def build(args):
+    controller, _, _ = init(args)
+    controller.build()
 
-    if action == 'stop':
-        controller.stop()
 
-    if action == 'resume':
-        controller.resume()
+def destroy(args):
+    controller, _, _ = init(args)
+    controller.destroy()
 
-    if action == 'simulate':
-        controller.simulate(target, simulation_techniques)
 
-    if action == 'search':
-        controller.search(search_name)
+def stop(args):
+    controller, _, _ = init(args)
+    controller.stop()
+
+
+def resume(args):
+    controller, _, _ = init(args)
+    controller.resume()
+
+
+def test(args):
+    controller, _, _ = init(args)
+    return controller.test(args.test_file)
+
+
+def main(args):
+    # grab arguments
+    parser = argparse.ArgumentParser(
+        description="Use `attack_range.py action -h` to get help with any Attack Range action")
+    parser.add_argument("-c", "--config", required=False, default="attack_range.conf",
+                        help="path to the configuration file of the attack range")
+    parser.add_argument("-v", "--version", default=False, action="version", version="version: {0}".format(VERSION),
+                        help="shows current attack_range version")
+    parser.set_defaults(func=lambda _: parser.print_help())
+
+    actions_parser = parser.add_subparsers(title="Attack Range actions", dest="action")
+    configure_parser = actions_parser.add_parser("configure", help="configure a new attack range")
+    build_parser = actions_parser.add_parser("build", help="Builds attack range instances")
+    simulate_parser = actions_parser.add_parser("simulate", help="Simulates attack techniques")
+    destroy_parser = actions_parser.add_parser("destroy", help="destroy attack range instances")
+    stop_parser = actions_parser.add_parser("stop", help="stops attack range instances")
+    resume_parser = actions_parser.add_parser("resume", help="resumes previously stopped attack range instances")
+    show_parser = actions_parser.add_parser("show", help="list machines")
+    test_parser = actions_parser.add_parser("test")
+    dump_parser = actions_parser.add_parser("dump", help="dump locally logs from attack range instances")
+    replay_parser = actions_parser.add_parser("replay", help="replay dumps into the Splunk Enterprise server")
+
+    # Build arguments
+    build_parser.set_defaults(func=build)
+
+    # Destroy arguments
+    destroy_parser.set_defaults(func=destroy)
+
+    # Stop arguments
+    stop_parser.set_defaults(func=stop)
+
+    # Resume arguments
+    resume_parser.set_defaults(func=resume)
+
+    # Configure arguments
+    configure_parser.add_argument("-c", "--config", required=False, type=str, default='attack_range.conf',
+                                    help="provide path to write configuration to")
+    configure_parser.set_defaults(func=configure)
+
+    # Simulation arguments
+    simulate_parser.add_argument("-t", "--target", required=True,
+                                 help="target for attack simulation. Use the name of the aws EC2 name")
+    simulate_parser.add_argument("-st", "--simulation_technique", required=False, type=str, default="",
+                                 help="comma delimited list of MITRE ATT&CK technique ID to simulate in the "
+                                      "attack_range, example: T1117, T1118, requires --simulation flag")
+    simulate_parser.add_argument("-sa", "--simulation_atomics", required=False, type=str, default="",
+                                 help="specify dedicated Atomic Red Team atomics to simulate in the attack_range, "
+                                      "example: Regsvr32 remote COM scriptlet execution for T1117")
+    simulate_parser.set_defaults(func=simulate)
+
+    # Dump  Arguments
+    dump_parser.add_argument("-dn", "--dump_name", required=True,
+                             help="name for the dumped attack data")
+    dump_parser.add_argument("--last-sim", required=False, action='store_true',
+                             help="overrides dumps.yml time and dumps from the start of previous simulation")
+    dump_parser.set_defaults(func=dump)
+
+    # Replay Arguments
+    replay_parser.add_argument("-dn", "--dump_name", required=True,
+                               help="name for the dumped attack data")
+    replay_parser.add_argument("--dump", required=False,
+                        help="name of the dump as defined in attack_data/dumps.yml")
+    replay_parser.set_defaults(func=replay)
+
+    # Test Arguments
+    test_parser.add_argument("-tf", "--test_file", required=True,
+                             type=str, default="", help='test file for test command')
+    test_parser.set_defaults(func=test)
+
+    # Show arguments
+    show_parser.add_argument("-m", "--machines", required=False, default=False,
+                             action="store_true", help="prints out all available machines")
+    show_parser.set_defaults(func=show, machines=True)
+
+    # # parse them
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

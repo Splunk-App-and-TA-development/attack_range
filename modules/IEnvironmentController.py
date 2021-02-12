@@ -26,11 +26,11 @@ class IEnvironmentController(ABC):
         pass
 
     @abstractmethod
-    def simulate(self, target, simulation_techniques):
+    def simulate(self, target, simulation_techniques, simulation_atomics):
         pass
 
     @abstractmethod
-    def search(self, search_name):
+    def test(self, test_file):
         pass
 
     @abstractmethod
@@ -38,5 +38,9 @@ class IEnvironmentController(ABC):
         pass
 
     @abstractmethod
-    def list_searches(self):
+    def dump_attack_data(self, dump_name, last_sim):
+        pass
+
+    @abstractmethod
+    def replay_attack_data(self, dump_name, dump):
         pass

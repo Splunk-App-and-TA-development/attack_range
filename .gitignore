@@ -1,17 +1,35 @@
+# ignore attack_range.conf that might include local custom changes
+attack_range.conf
+*.key
+*.pub
 
 # ignore appbinaries directory we don't want this uploaded
 ansible/roles/*/files/splunk*.tgz
 ansible/roles/*/files/splunk*.msi
 ansible/vars/vars.yml
 *.idea
+*.hcl
+
+# apps folder
+apps/*
+!apps/.gitkeep
+
+# attack data folder
+attack_data/*
+!attack_data/dumps.yml
+!attack_data/.gitkeep
 
 # log file
 attack_range.log
 .attack_range/artifacts
+artifacts
 
 ## Terraform ignores
 # Local .terraform directories
-terraform/.terraform/
+terraform/aws/.terraform/
+terraform/azure/.terraform/
+terraform/aws/state/
+terraform/azure/state/
 
 # .tfstate files
 *.tfstate
@@ -19,6 +37,9 @@ terraform/.terraform/
 
 # Crash log files
 crash.log
+
+# Kubeconfig files
+*kubeconfig*
 
 # Ignore any .tfvars files that are generated automatically for each Terraform run. Most
 # .tfvars files are managed as part of configuration and so should be included in
@@ -160,3 +181,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+#state directories
+terraform/state/*
+!terraform/state/state.md
